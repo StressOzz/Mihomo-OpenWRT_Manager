@@ -37,7 +37,7 @@ while true; do
 done
 
 if [ -n "$MAGITRICKLE_CONFIG_URL" ]; then
-  echo -e "${CYAN}Скачивание конфигурации...${NC}"
+  echo -e "\n${CYAN}Скачиванем и устанавливаем список${NC}"
   wget -q -O "$CONFIGPATH" "$MAGITRICKLE_CONFIG_URL" || {
     echo -e "${RED}Ошибка: не удалось скачать список!${NC}"
     echo "URL: $MAGITRICKLE_CONFIG_URL"
@@ -49,9 +49,9 @@ if [ -n "$MAGITRICKLE_CONFIG_URL" ]; then
     return 1
   fi
 
-  echo -e "${GREEN}Готово.${NC}"
+  echo -e "${GREEN}Список успешно изменён!${NC}"
   /etc/init.d/magitrickle enable >/dev/null 2>&1
-  /etc/init.d/magitrickle reload  >/dev/null 2>&1
+  /etc/init.d/magitrickle reload >/dev/null 2>&1
   /etc/init.d/magitrickle start >/dev/null 2>&1
   /etc/init.d/magitrickle restart >/dev/null 2>&1
 else
