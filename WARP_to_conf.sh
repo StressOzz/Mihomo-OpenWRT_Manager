@@ -157,8 +157,8 @@ END{
     print "    amnezia-wg-option:" >> OUT
     if(s1!="")  print "      s1: " s1 >> OUT
     if(s2!="")  print "      s2: " s2 >> OUT
-    if(s3!="")  print "      s1: " s1 >> OUT
-    if(s4!="")  print "      s2: " s2 >> OUT
+    if(s3!="")  print "      s3: " s3 >> OUT
+    if(s4!="")  print "      s4: " s4 >> OUT
     if(jc!="")  print "      jc: " jc >> OUT
     if(jmin!="")print "      jmin: " jmin >> OUT
     if(jmax!="")print "      jmax: " jmax >> OUT
