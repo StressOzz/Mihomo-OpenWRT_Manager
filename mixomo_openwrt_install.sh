@@ -1189,8 +1189,8 @@ select_magitrickle_config() {
   echo
   log_step "Выбор списка для MagiTrickle"
   echo "  1) ITDog Allow Domains"
-  echo "  2) Default"
-  echo "  3) Пропустить (оставить текущий config)"
+  echo "  2) Internet Helper"
+  echo "  3) Oставить текущий список"
   echo
 
   while true; do
