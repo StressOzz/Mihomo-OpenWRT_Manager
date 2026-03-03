@@ -1365,7 +1365,6 @@ main() {
 	echo ""
 	
 	log_step "Установка Mixomo OpenWRT $SCRIPT_VERSION прошла успешно!"
-	echo ""
 }
 
 main
