@@ -20,8 +20,8 @@ PAUSE() { echo -ne "\nНажмите Enter..."; read dummy; }
 magitrickle_config() {
 echo
 echo -e "${YELLOW}Выбор списка для MagiTrickle${NC}"
-echo -e "${CYAN}1) ${GREEN}ITDog Allow Domains${NC}"
-echo -e "${CYAN}2) ${GREEN}Internet Helper${NC}"
+echo -e "${CYAN}1) ${GREEN}Список от${NC} ITDog ${GREEN}-${NC} Allow Domains"
+echo -e "${CYAN}2) ${GREEN}Список от${NC} Internet Helper"
 echo -e "${CYAN}3) ${GREEN}Оставить текущий список${NC}"
 echo -e "${CYAN}Enter) ${GREEN}Выход в главное меню${NC}"
 echo
