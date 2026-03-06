@@ -18,27 +18,19 @@ echo 'sh <(wget -O - https://raw.githubusercontent.com/StressOzz/Mixomo-Manager/
 PAUSE() { echo -ne "\nНажмите Enter..."; read dummy; }
 
 magitrickle_config() {
-clear
-
-echo -e "${MAGENTA}Выбор списка для MagiTrickle${NC}\n"
-
-grep -F -A1 'id: "06776295"' "$CONFIGPATH" 2>/dev/null | grep -q 'name: Meta (WA+FB+Instagram)' && echo -e "${YELLOW}Используется список: ${NC}Internet Helper\n"
-grep -F -A1 'id: 0d9bc63c' "$CONFIGPATH" 2>/dev/null | grep -q 'name: Google_ai' && echo -e "${YELLOW}Используется список: ${NC}ITDog\n"
-
+echo -e "\n${MAGENTA}Выбор списка для MagiTrickle${NC}"
 echo -e "${CYAN}1) ${GREEN}Список от${NC} ITDog"
 echo -e "${CYAN}2) ${GREEN}Список от${NC} Internet Helper"
-echo -e "${CYAN}3) ${GREEN}Оставить текущий список${NC}"
-echo -e "${CYAN}Enter) ${GREEN}Выход в главное меню${NC}"
-echo
+echo -e "${CYAN}Enter) ${GREEN}Выход в главное меню${NC}\n"
 
 while true; do
-  echo -en "${YELLOW}Введите номер: ${NC}"
+  echo -en "${YELLOW}Выберите пункт: ${NC}"
   read -r choice
 
   case "$choice" in
     1) MAGITRICKLE_CONFIG_URL="$URL_ITDOG"; break ;;
     2) MAGITRICKLE_CONFIG_URL="$URL_DEFAULT"; break ;;
-    *) echo; break ;;
+    *) return ;;
   esac
 done
 
@@ -60,8 +52,7 @@ if [ -n "$MAGITRICKLE_CONFIG_URL" ]; then
   /etc/init.d/magitrickle reload >/dev/null 2>&1
   /etc/init.d/magitrickle start >/dev/null 2>&1
   /etc/init.d/magitrickle restart >/dev/null 2>&1
-else
-  echo -e "${CYAN}Текущий список оставлен без изменений.${NC}"
+  PAUSE
 fi
 }
 
@@ -88,15 +79,14 @@ check_status
 
 grep -F -A1 'id: "06776295"' "$CONFIGPATH" 2>/dev/null | grep -q 'name: Meta (WA+FB+Instagram)' && echo -e "${YELLOW}Используется список: ${NC}Internet Helper"
 grep -F -A1 'id: 0d9bc63c' "$CONFIGPATH" 2>/dev/null | grep -q 'name: Google_ai' && echo -e "${YELLOW}Используется список: ${NC}ITDog"
-echo
-echo -e "${CYAN}1) ${GREEN}Установить ${NC}Mixomo"
+
+echo -e "\n${CYAN}1) ${GREEN}Установить ${NC}Mixomo"
 echo -e "${CYAN}2) ${GREEN}Удалить ${NC}Mixomo"
 echo -e "${CYAN}3) ${GREEN}Сменить список ${NC}MagiTrickle"
 echo -e "${CYAN}4) ${GREEN}Сгенерировать ${NC}WARP ${GREEN}в ${NC}/root/WARP.conf"
 echo -e "${CYAN}5) ${GREEN}Интегрировать ${NC}/root/WARP.conf${GREEN} в ${NC}Mihomo"
 # echo -e "${CYAN}6) ${GREEN}Удалить ${NC}→ ${GREEN}установить ${NC}→ ${GREEN}настроить ${NC}mihomo-openwrt"
-echo -e "${CYAN}Enter) ${GREEN}Выход"
-echo
+echo -e "${CYAN}Enter) ${GREEN}Выход\n"
 echo -ne "${YELLOW}Выберите пункт: ${NC}"
 read choiceM
 
@@ -111,7 +101,6 @@ case "$choiceM" in
   ;;
 3)
   magitrickle_config
-  PAUSE
   ;;
 4)
   sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mixomo-Manager/main/gen_WARP.sh)
