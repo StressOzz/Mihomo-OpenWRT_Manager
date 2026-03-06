@@ -12,7 +12,6 @@ REPO_DIR="$WORK/repo"
 RED="$(printf '\033[31m')"
 GRN="$(printf '\033[32m')"
 YEL="$(printf '\033[33m')"
-BLU="$(printf '\033[34m')"
 CYN="$(printf '\033[36m')"
 MAG="$(printf '\033[35m')"
 RST="$(printf '\033[0m')"
@@ -116,6 +115,7 @@ function is_ipv6(s){ return (s ~ /^[0-9a-fA-F:]+$/) }
 function is_ipv6_cidr(s){ return (s ~ /^[0-9a-fA-F:]+\/[0-9]{1,3}$/) }
 function is_domainish(s){ return (s ~ /^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z0-9.-]+$/) }
 function dotcount(s,  i,c,n){ n=0; for(i=1;i<=length(s);i++){ c=substr(s,i,1); if(c==".") n++ } return n }
+
 function json_escape(s,  i,c,o){
   o=""
   for(i=1;i<=length(s);i++){
@@ -127,23 +127,40 @@ function json_escape(s,  i,c,o){
   }
   return o
 }
+
 function rid(    x){
   "hexdump -n 4 -e \x27/1 \"%02x\"\x27 /dev/urandom 2>/dev/null" | getline x
   close("hexdump -n 4 -e \x27/1 \"%02x\"\x27 /dev/urandom 2>/dev/null")
   if(x=="") x="00000000"
   return x
 }
-function rand_color(    h){
-  "hexdump -n 3 -e \x27/1 \"%02x\"\x27 /dev/urandom 2>/dev/null" | getline h
-  close("hexdump -n 3 -e \x27/1 \"%02x\"\x27 /dev/urandom 2>/dev/null")
-  if(h=="") h="ffffff"
-  return "#" h
+
+function hsv_to_hex(h, s, v,   c,x,m,r,g,b,hh){
+  c=v*s
+  hh=h/60
+  x=c*(1-((hh%2)-1<0?-(hh%2-1):(hh%2-1)))
+
+  if(hh<1){r=c;g=x;b=0}
+  else if(hh<2){r=x;g=c;b=0}
+  else if(hh<3){r=0;g=c;b=x}
+  else if(hh<4){r=0;g=x;b=c}
+  else if(hh<5){r=x;g=0;b=c}
+  else {r=c;g=0;b=x}
+
+  m=v-c
+  r=int((r+m)*255)
+  g=int((g+m)*255)
+  b=int((b+m)*255)
+
+  return sprintf("#%02x%02x%02x",r,g,b)
 }
+
 BEGIN{
-  OFS=""  # чтобы awk не вставлял пробелы между print-аргументами [web:243]
+  OFS=""
   print "{\"groups\":["
   first_group=1
 }
+
 {
   g=$1; v=$2
   key=g SUBSEP v
@@ -151,18 +168,25 @@ BEGIN{
   groups[g]=1
   vals[g, ++cnt[g]] = v
 }
+
 END{
+  golden=137.508
+
   n=0
   for(g in groups){ glist[++n]=g }
+
   for(i=1;i<=n;i++) for(j=i+1;j<=n;j++) if(glist[i] > glist[j]){ t=glist[i]; glist[i]=glist[j]; glist[j]=t }
 
   for(gi=1; gi<=n; gi++){
     g=glist[gi]
-    if(!first_group) print ","
+
+    if(!first_group) printf(",\n")
     first_group=0
 
     gid=rid()
-    color=rand_color()
+
+    hue=(gi*golden)%360
+    color=hsv_to_hex(hue,0.65,0.95)
 
     print "{\"id\":\"",gid,"\",\"name\":\"",json_escape(g),"\",\"color\":\"",color,"\",\"interface\":\"Mihomo\",\"enable\":true,\"rules\":["
     first_rule=1
@@ -181,16 +205,19 @@ END{
         if(dotcount(v)>=2) typ="domain"; else typ="namespace"
       } else typ="namespace"
 
-      if(!first_rule) print ","
+      if(!first_rule) printf(",\n")
       first_rule=0
-      print "{\"enable\":true,\"id\":\"",rid(),"\",\"name\":\"\",\"rule\":\"",json_escape(v),"\",\"type\":\"",typ,"\"}"
+
+      printf("{\"enable\":true,\"id\":\"%s\",\"name\":\"\",\"rule\":\"%s\",\"type\":\"%s\"}",rid(),json_escape(v),typ)
     }
+
     print "]}"
     delete vlist
   }
+
   print "]}"
 }
-' "$WORK/tagged.tsv" 2> "$WORK/report.tsv" > "$OUT"
+' "$WORK/tagged.tsv" > "$OUT"
 
 say "$GRN" "Готово!"
-say "$GRN" "Файл сохранён: $OUT"
+say "$YEL" "Файл сохранён:" "$RST""$OUT"
