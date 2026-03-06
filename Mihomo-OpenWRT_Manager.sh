@@ -68,15 +68,15 @@ check_status() {
   [ -x /etc/init.d/hev-socks5-tunnel ] && HEV_STATUS="${GREEN}установлен${NC}"
   [ -x /etc/init.d/magitrickle ] && MAGITRICKLE_STATUS="${GREEN}установлен${NC}"
 
-  echo -e "${YELLOW}mihomo-openwrt:${NC}    $MIHOMO_STATUS"
-  echo -e "${YELLOW}hev-socks5-tunnel:${NC} $HEV_STATUS"
-  echo -e "${YELLOW}magitrickle:${NC}       $MAGITRICKLE_STATUS"
+  echo -e "${YELLOW}Mihomo:${NC}            $MIHOMO_STATUS"
+  echo -e "${YELLOW}MagiTrickle:${NC}       $MAGITRICKLE_STATUS"
+  echo -e "${YELLOW}HevSocks5Tunnel:${NC}   $HEV_STATUS"
 }
 
 show_menu() {
 clear
 echo -e "╔═══════════════════════════════════════════╗"
-echo -e "║ ${BLUE}mihomo-openwrt on Internet-Helper Manager${NC} ║"
+echo -e "║ ${BLUE}Mixomo OpenWRT on Internet-Helper Manager${NC} ║"
 echo -e "╚═══════════════════════════════════════════╝"
 echo -e "                                 ${DGRAY}by StressOzz${NC}"
 
@@ -84,11 +84,11 @@ echo
 check_status
 echo
 
-echo -e "${CYAN}1) ${GREEN}Установить ${NC}mihomo-openwrt"
-echo -e "${CYAN}2) ${GREEN}Удалить ${NC}mihomo-openwrt"
+echo -e "${CYAN}1) ${GREEN}Установить ${NC}Mixomo OpenWRT"
+echo -e "${CYAN}2) ${GREEN}Удалить ${NC}Mixomo OpenWRT"
 echo -e "${CYAN}3) ${GREEN}Сменить список ${NC}MagiTrickle"
 echo -e "${CYAN}4) ${GREEN}Сгенерировать ${NC}WARP"
-echo -e "${CYAN}5) ${GREEN}Интегрировать ${NC}/root/WARP.conf${GREEN} в ${NC}mihomo-openwrt"
+echo -e "${CYAN}5) ${GREEN}Интегрировать ${NC}/root/WARP.conf${GREEN} в ${NC}Mixomo OpenWRT"
 # echo -e "${CYAN}6) ${GREEN}Удалить ${NC}→ ${GREEN}установить ${NC}→ ${GREEN}настроить ${NC}mihomo-openwrt"
 echo -e "${CYAN}Enter) ${GREEN}Выход"
 echo
@@ -97,11 +97,11 @@ read choiceM
 
 case "$choiceM" in
 1)
-  sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/mihomo_openwrt_install.sh)
+  sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/mixomo_openwrt_install.sh)
   PAUSE
   ;;
 2)
-  sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/mihomo_openwrt_delete.sh)
+  sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/mixomo_openwrt_delete.sh)
   PAUSE
   ;;
 3)
@@ -117,8 +117,8 @@ case "$choiceM" in
   PAUSE
   ;;
 6)
-  sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/mihomo_openwrt_delete.sh)
-  sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/mihomo_openwrt_install.sh)
+  sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/mixomo_openwrt_delete.sh)
+  sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/mixomo_openwrt_install.sh)
   sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/gen_WARP.sh)
   sh <(wget -q -O - https://raw.githubusercontent.com/StressOzz/Mihomo-OpenWRT_Manager/main/WARP_to_conf.sh)
   PAUSE
