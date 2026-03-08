@@ -99,19 +99,17 @@ install_deps() {
             fi
         fi
         log_info "Доступно пакетов: $AVAIL_PKG"
-        apk add wget-ssl ca-certificates kmod-tun kmod-nft-tproxy kmod-nft-nat curl >> "$PKG_LOG" 2>&1 || {
+        apk add ca-certificates kmod-tun kmod-nft-tproxy kmod-nft-nat curl >> "$PKG_LOG" 2>&1 || {
             log_error "Ошибка установки зависимостей:"; cat "$PKG_LOG"; rm -f "$PKG_LOG"; return 1;
         }
     else
         if ! opkg update > "$PKG_LOG" 2>&1; then
             log_warn "opkg update не удался, переустановка wget..."
-            opkg remove wget-ssl >> "$PKG_LOG" 2>&1
-            opkg install wget --force-reinstall >> "$PKG_LOG" 2>&1
             if ! opkg update >> "$PKG_LOG" 2>&1; then
                 log_error "Ошибка обновления списков пакетов:"; cat "$PKG_LOG"; rm -f "$PKG_LOG"; return 1
             fi
         fi
-        opkg install wget-ssl ca-certificates kmod-tun kmod-nft-tproxy kmod-nft-nat curl libcurl4 ca-bundle >> "$PKG_LOG" 2>&1 || {
+        opkg install ca-certificates kmod-tun kmod-nft-tproxy kmod-nft-nat curl libcurl4 ca-bundle >> "$PKG_LOG" 2>&1 || {
             log_error "Ошибка установки зависимостей:"
             if grep -iq "No space left on device" "$PKG_LOG" || grep -iq "write error" "$PKG_LOG"; then
                 log_error "Недостаточно места на диске!"
@@ -200,7 +198,7 @@ install_mihomo() {
 
     log_info "Скачивание архива $FILENAME"
     echo "--> URL: $DOWNLOAD_URL"
-    if ! curl -Lf --retry 3 --retry-delay 2 "$DOWNLOAD_URL" -o "$TMP_FILE"; then
+    if ! curl -Lf --retry 3 --retry-delay 2 "$DOWNLOAD_URL" -o "$TMP_FILE" >/dev/null 2>&1; then
         log_error "Ошибка скачивания! Проверьте, существует ли файл $FILENAME в релизах."
         return 1
     fi
@@ -1206,9 +1204,9 @@ install_hev_tunnel() {
 
     if [ "$USE_APK" -eq 1 ]; then
         apk cache clean
-        apk add hev-socks5-tunnel
+        apk add hev-socks5-tunnel >/dev/null 2>&1
     else
-        manage_pkg install hev-socks5-tunnel
+        manage_pkg install hev-socks5-tunnel >/dev/null 2>&1
     fi
 
     rm -f /etc/hev-socks5-tunnel/main.yml
@@ -1282,125 +1280,6 @@ EOF
     /etc/init.d/firewall restart
 }
 
-_magitrickle_apk() {
-    local OPENWRT_ARCH
-    OPENWRT_ARCH=$(grep "^OPENWRT_ARCH=" /etc/os-release | cut -d'"' -f2)
-    [ -n "$OPENWRT_ARCH" ] || { log_error "Не удалось определить архитектуру из /etc/os-release"; return 1; }
-    echo "--> Архитектура OpenWrt: $OPENWRT_ARCH"
-
-    local APK_NAME="magitrickle_${MT_VERSION_APK}_${MT_PRE_APK}-r1_openwrt_${OPENWRT_ARCH}.apk"
-    local APK_URL="https://gitlab.com/api/v4/projects/69165954/jobs/artifacts/develop/raw/.build/${APK_NAME}?job=build"
-    local TMP_APK="/tmp/magitrickle.apk"
-
-    echo "--> Скачивание: $APK_NAME"
-    if ! curl -Lf --retry 3 --retry-delay 2 -o "$TMP_APK" "$APK_URL"; then
-        log_error "Ошибка скачивания пакета"
-        log_error "URL: $APK_URL"
-        rm -f "$TMP_APK"
-        return 1
-    fi
-
-    if [ ! -s "$TMP_APK" ]; then
-        log_error "Скачанный файл пустой. Проверьте MT_VERSION_APK и MT_PRE_APK в начале скрипта."
-        rm -f "$TMP_APK"
-        return 1
-    fi
-
-    echo "--> Установка пакета..."
-    apk add --allow-untrusted "$TMP_APK" || { log_error "Ошибка установки MagiTrickle"; rm -f "$TMP_APK"; return 1; }
-    rm -f "$TMP_APK"
-
-    /etc/init.d/magitrickle enable 2>/dev/null || true
-    /etc/init.d/magitrickle start 2>/dev/null || true
-}
-
-_magitrickle_opkg() {
-    echo "Выберите версию MagiTrickle для установки:"
-    echo "1) Оригинал v${MT_VERSION_OPKG} (https://magitrickle.dev/docs/welcome/)"
-    echo "2) Мод от LarinIvan (https://github.com/LarinIvan/MagiTrickle_Mod/)"
-    printf "-> "
-    local CHOICE
-    read -r CHOICE
-
-    case "$CHOICE" in
-        1)
-            if ! wget --version > /dev/null 2>&1; then
-                log_warn "wget не работает, переустановка..."
-                opkg remove wget-ssl > /dev/null 2>&1
-                opkg install wget --force-reinstall > /dev/null 2>&1 || {
-                    log_error "Критическая ошибка: не удалось переустановить wget"
-                    return 1
-                }
-                log_info "wget успешно переустановлен..."
-            fi
-
-            local ARCH_SYS
-            ARCH_SYS=$(grep "^OPENWRT_ARCH=" /etc/os-release | cut -d'"' -f2)
-            [ -n "$ARCH_SYS" ] || { log_error "Не удалось определить архитектуру OpenWrt"; return 1; }
-            echo "--> Архитектура: $ARCH_SYS"
-
-            local IPK="magitrickle_${MT_VERSION_OPKG}-2_openwrt_${ARCH_SYS}.ipk"
-            local URL="https://gitlab.com/api/v4/projects/69165954/packages/generic/magitrickle/${MT_VERSION_OPKG}/$IPK"
-
-            wget -O "/tmp/$IPK" "$URL" || { log_error "Ошибка скачивания оригинального MagiTrickle"; return 1; }
-            opkg install "/tmp/$IPK" || return 1
-            rm -f "/tmp/$IPK"
-
-            /etc/init.d/magitrickle enable > /dev/null 2>&1
-            /etc/init.d/magitrickle start > /dev/null 2>&1
-            ;;
-        2)
-            log_info "Установка MagiTrickle_Mod..."
-            wget -O- https://raw.githubusercontent.com/LarinIvan/MagiTrickle_Mod/develop/add_repo.sh | sh || return 1
-            ;;
-        *)
-            log_error "Неверный выбор"
-            return 1
-            ;;
-    esac
-}
-
-_magitrickle_restore_config() {
-    local CONFIG_PATH="/etc/magitrickle/state/config.yaml"
-    local BACKUP_PATH="$1"
-
-    [ -f "$BACKUP_PATH" ] || return 0
-    [ -f "$CONFIG_PATH" ] || { mkdir -p "$(dirname "$CONFIG_PATH")"; cp "$BACKUP_PATH" "$CONFIG_PATH"; rm -f "$BACKUP_PATH"; return 0; }
-
-    local OLD_VERSION NEW_VERSION
-    OLD_VERSION=$(grep "^configVersion:" "$BACKUP_PATH" | awk '{print $2}' | tr -d ' ')
-    NEW_VERSION=$(grep "^configVersion:" "$CONFIG_PATH" | awk '{print $2}' | tr -d ' ')
-
-    if [ -z "$OLD_VERSION" ] || [ -z "$NEW_VERSION" ]; then
-        log_warn "Не удалось определить версию конфигурации. Бэкап сохранен как ${CONFIG_PATH}.backup"
-        cp "$BACKUP_PATH" "${CONFIG_PATH}.backup"
-        rm -f "$BACKUP_PATH"
-        return 0
-    fi
-
-    local o1 o2 o3 n1 n2 n3
-    o1=$(echo "$OLD_VERSION" | cut -d'.' -f1)
-    o2=$(echo "$OLD_VERSION" | cut -d'.' -f2)
-    o3=$(echo "$OLD_VERSION" | cut -d'.' -f3)
-    n1=$(echo "$NEW_VERSION" | cut -d'.' -f1)
-    n2=$(echo "$NEW_VERSION" | cut -d'.' -f2)
-    n3=$(echo "$NEW_VERSION" | cut -d'.' -f3)
-    o1=${o1:-0}; o2=${o2:-0}; o3=${o3:-0}
-    n1=${n1:-0}; n2=${n2:-0}; n3=${n3:-0}
-
-    if [ "$o1" -eq "$n1" ] && [ "$o2" -eq "$n2" ] && [ "$o3" -eq "$n3" ]; then
-        echo "--> Версии конфигурации совпадают ($OLD_VERSION). Восстановление..."
-        cp "$BACKUP_PATH" "$CONFIG_PATH"
-    elif [ "$o1" -gt "$n1" ] || { [ "$o1" -eq "$n1" ] && [ "$o2" -gt "$n2" ]; } || { [ "$o1" -eq "$n1" ] && [ "$o2" -eq "$n2" ] && [ "$o3" -gt "$n3" ]; }; then
-        log_warn "Старая конфигурация ($OLD_VERSION) новее новой ($NEW_VERSION). Бэкап: ${CONFIG_PATH}.backup"
-        cp "$BACKUP_PATH" "${CONFIG_PATH}.backup"
-    else
-        log_info "Новая версия конфигурации ($NEW_VERSION) выше старой ($OLD_VERSION). Бэкап: ${CONFIG_PATH}.backup"
-        cp "$BACKUP_PATH" "${CONFIG_PATH}.backup"
-    fi
-
-    rm -f "$BACKUP_PATH"
-}
 
 install_magitrickle() {
     local CONFIG_PATH="/etc/magitrickle/state/config.yaml"
@@ -1409,19 +1288,39 @@ install_magitrickle() {
     [ -f "$CONFIG_PATH" ] && cp "$CONFIG_PATH" "$BACKUP_PATH"
 
     if [ "$USE_APK" -eq 1 ]; then
-        apk del magitrickle 2>/dev/null || true
+        apk del magitrickle >/dev/null 2>&1 || true
     else
-        opkg remove magitrickle_mod 2>/dev/null || true
-        opkg remove magitrickle 2>/dev/null || true
+        opkg remove magitrickle >/dev/null 2>&1 || true
     fi
 
     if [ "$USE_APK" -eq 1 ]; then
-        _magitrickle_apk || return 1
+ARCH=$(grep "^OPENWRT_ARCH=" /etc/os-release | cut -d'"' -f2) || exit 1
+APK="magitrickle_${MT_VERSION_APK}_${MT_PRE_APK}-r1_openwrt_${ARCH}.apk"
+URL="https://gitlab.com/api/v4/projects/69165954/jobs/artifacts/develop/raw/.build/$APK?job=build"
+curl -Lf --retry 3 --retry-delay 2 -o /tmp/magitrickle.apk "$URL" >/dev/null 2>&1 || exit 1
+apk add --allow-untrusted /tmp/magitrickle.apk >/dev/null 2>&1 || exit 1
+rm -f /tmp/magitrickle.apk
     else
-        _magitrickle_opkg || return 1
+ARCH=$(grep "^OPENWRT_ARCH=" /etc/os-release | cut -d'"' -f2) || exit 1
+IPK="magitrickle_${MT_VERSION_OPKG}-2_openwrt_${ARCH}.ipk"
+URL="https://gitlab.com/api/v4/projects/69165954/packages/generic/magitrickle/${MT_VERSION_OPKG}/$IPK"
+wget -q -O "/tmp/$IPK" "$URL" || exit 1
+opkg install "/tmp/$IPK" >/dev/null 2>&1 || exit 1
+rm -f "/tmp/$IPK"
     fi
 
-    _magitrickle_restore_config "$BACKUP_PATH"
+	echo "--> Установка списка для MagiTrickle..."
+	confGIT="https://raw.githubusercontent.com/StressOzz/Use_WARP_on_OpenWRT/refs/heads/main/files/MagiTrickle/configAD.yaml"
+	wget -q -O "$CONFIG_PATH" "$confGIT" || {
+    echo "Ошибка: не удалось скачать список!"
+    echo "URL: $MAGITRICKLE_CONFIG_URL"
+    return 1
+	}
+	echo "--> Запуск MagiTrickle..."
+	/etc/init.d/magitrickle enable >/dev/null 2>&1
+	/etc/init.d/magitrickle reload  >/dev/null 2>&1
+	/etc/init.d/magitrickle start >/dev/null 2>&1
+	/etc/init.d/magitrickle restart >/dev/null 2>&1
 
     echo "--> Создание страницы MagiTrickle в LuCI..."
     mkdir -p /www/luci-static/resources/view/magitrickle
@@ -1474,7 +1373,8 @@ finalize_install() {
 
 main() {
     clear
-    log_done "Скрипт установки Mixomo OpenWRT $SCRIPT_VERSION от Internet Helper"
+	log_done "Скрипт установки Mixomo OpenWRT $SCRIPT_VERSION"
+	log_done "        от Internet Helper (StressOzz Remix)"
     echo ""
 
     log_step "[1/5] Установка зависимостей"
@@ -1498,23 +1398,6 @@ main() {
     echo ""
 
     log_step "Установка Mixomo OpenWRT $SCRIPT_VERSION прошла успешно!"
-    echo ""
-    log_done "┌───────────────────────────────────────────────────────────────────────┐"
-    log_done "│ 1. Выйдите из LuCI и войдите снова                                    │"
-    log_done "├───────────────────────────────────────────────────────────────────────┤"
-    log_done "│ 2. Службы или Services → Mihomo → Настройте конфигурацию              │"
-    log_done "│    ${CYAN}[Генератор конфигурации]                                           ${GREEN}│"
-    log_done "│    ${CYAN}https://spatiumstas.github.io/web4core/                            ${GREEN}│"
-    log_done "│    ${CYAN}[Готовые конфигурации]                                             ${GREEN}│"
-    log_done "│    ${CYAN}https://secret-harbor.notion.site/31345fc37b6f80fa82d3da96e9ae12cc ${GREEN}│"
-    log_done "├───────────────────────────────────────────────────────────────────────┤"
-    log_done "│ 3. Службы или Services → MagiTrickle → Создайте списки                │"
-    log_done "│    ${CYAN}[Готовые конфигурации]                                             ${GREEN}│"
-    log_done "│    ${CYAN}https://secret-harbor.notion.site/31345fc37b6f80fa82d3da96e9ae12cc ${GREEN}│"
-    log_done "├───────────────────────────────────────────────────────────────────────┤"
-    log_done "│ 4. Наслаждайтесь интернетом :)                                        │"
-    log_done "└───────────────────────────────────────────────────────────────────────┘"
-    echo ""
 }
 
 main
