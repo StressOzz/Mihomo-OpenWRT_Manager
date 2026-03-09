@@ -2,9 +2,14 @@
 
 SCRIPT_VERSION="v0.1.2-alpha"
 
-MT_VERSION_APK="0.5.3"
-MT_PRE_APK="pre20260305232358"
-MT_VERSION_OPKG="0.5.2"
+MT_VERSION="0.5.3"
+MT_PRE_APK="pre20260305232358-r1"
+MT_PRE_IPK="~git20260305232358.d47bd8b3-1"
+
+ARCH=$(grep "^OPENWRT_ARCH=" /etc/os-release | cut -d'"' -f2)
+
+URL_APK="https://gitlab.com/magitrickle/magitrickle/-/jobs/13378493545/artifacts/raw/.build/magitrickle_${MT_VERSION}_${MT_PRE_APK}_openwrt_${ARCH}.apk"
+URL_IPK="https://gitlab.com/magitrickle/magitrickle/-/jobs/13378493545/artifacts/raw/.build/magitrickle_${MT_VERSION}${MT_PRE_IPK}_openwrt_${ARCH}.ipk"
 
 MIHOMO_INSTALL_DIR="/etc/mihomo"
 MIHOMO_BIN="/usr/bin/mihomo"
@@ -79,222 +84,76 @@ detect_mihomo_arch() {
 install_deps() {
     log_info "Установка зависимостей..."
 
-    local PKG_LOG="/tmp/install_deps.log"
-
     if [ "$USE_APK" -eq 1 ]; then
-        log_info "Обновление индексов пакетов (apk)..."
-        apk update > "$PKG_LOG" 2>&1 || true
-        local AVAIL_PKG
-        AVAIL_PKG=$(grep -o '[0-9]* distinct packages available' "$PKG_LOG" | grep -o '^[0-9]*')
-        if [ -z "$AVAIL_PKG" ] || [ "$AVAIL_PKG" -eq 0 ]; then
-            log_warn "apk update не вернул доступных пакетов, повторная попытка..."
-            sleep 3
-            apk update > "$PKG_LOG" 2>&1 || true
-            AVAIL_PKG=$(grep -o '[0-9]* distinct packages available' "$PKG_LOG" | grep -o '^[0-9]*')
-            if [ -z "$AVAIL_PKG" ] || [ "$AVAIL_PKG" -eq 0 ]; then
-                log_error "apk update завершился без доступных пакетов:"
-                cat "$PKG_LOG"
-                rm -f "$PKG_LOG"
-                return 1
-            fi
-        fi
-        log_info "Доступно пакетов: $AVAIL_PKG"
-        apk add ca-certificates kmod-tun kmod-nft-tproxy kmod-nft-nat curl >> "$PKG_LOG" 2>&1 || {
-            log_error "Ошибка установки зависимостей:"; cat "$PKG_LOG"; rm -f "$PKG_LOG"; return 1;
+        log_info "Обновление списков пакетов..."
+		apk update >/dev/null 2>&1 || { log_error "apk update не удался"; return 1; }
+        apk add ca-certificates kmod-tun kmod-nft-tproxy kmod-nft-nat curl >/dev/null 2>&1 || {
+            log_error "Ошибка установки зависимостей"
+            return 1
         }
+
     else
-        if ! opkg update > "$PKG_LOG" 2>&1; then
-            log_warn "opkg update не удался, переустановка wget..."
-            if ! opkg update >> "$PKG_LOG" 2>&1; then
-                log_error "Ошибка обновления списков пакетов:"; cat "$PKG_LOG"; rm -f "$PKG_LOG"; return 1
-            fi
-        fi
-        opkg install ca-certificates kmod-tun kmod-nft-tproxy kmod-nft-nat curl libcurl4 ca-bundle >> "$PKG_LOG" 2>&1 || {
-            log_error "Ошибка установки зависимостей:"
-            if grep -iq "No space left on device" "$PKG_LOG" || grep -iq "write error" "$PKG_LOG"; then
-                log_error "Недостаточно места на диске!"
-            else
-                cat "$PKG_LOG"
-            fi
-            rm -f "$PKG_LOG"; return 1
+        log_info "Обновление списков пакетов..."
+        opkg update >/dev/null 2>&1 || { log_error "opkg update не удался"; return 1; }
+        opkg install ca-certificates kmod-tun kmod-nft-tproxy kmod-nft-nat curl libcurl4 ca-bundle >/dev/null 2>&1 || {
+            log_error "Ошибка установки зависимостей"
+            return 1
         }
     fi
-
-    rm -f "$PKG_LOG"
     log_info "Зависимости установлены."
 }
 
 install_mihomo() {
-    local REQ_TMP_KB=16000
-    local REQ_ROOT_KB=18000
+REQ_TMP_KB=16000
+REQ_ROOT_KB=18000
 
-    local AVAIL_TMP_KB
-    AVAIL_TMP_KB=$(df -k /tmp | awk 'NR==2 {print $4}')
-    if [ "$AVAIL_TMP_KB" -lt "$REQ_TMP_KB" ]; then
-        log_error "Недостаточно места в /tmp: доступно $((AVAIL_TMP_KB/1024)) MB, требуется $((REQ_TMP_KB/1024)) MB"
-        return 1
-    fi
+AVAIL_TMP_KB=$(df -k /tmp | awk 'NR==2{print $4}')
+INSTALL_DIR_PATH=$(dirname "$MIHOMO_BIN")
+AVAIL_ROOT_KB=$(df -k "$INSTALL_DIR_PATH" | awk 'NR==2{print $4}')
 
-    local INSTALL_DIR_PATH
-    INSTALL_DIR_PATH=$(dirname "$MIHOMO_BIN")
-    local AVAIL_ROOT_KB
-    AVAIL_ROOT_KB=$(df -k "$INSTALL_DIR_PATH" | awk 'NR==2 {print $4}')
+if [ "$AVAIL_TMP_KB" -lt "$REQ_TMP_KB" ]; then
+    log_error "Недостаточно места в /tmp: $((AVAIL_TMP_KB/1024)) MB (нужно $((REQ_TMP_KB/1024)) MB)"
+    return 1
+fi
 
-    if [ "$AVAIL_ROOT_KB" -lt "$REQ_ROOT_KB" ]; then
-        log_error "Недостаточно места на диске: доступно $((AVAIL_ROOT_KB/1024)) MB, требуется $((REQ_ROOT_KB/1024)) MB"
-        if [ -f "$MIHOMO_BIN" ]; then
-            log_warn "Найдена установленная версия: $MIHOMO_BIN"
-            printf "Удалить старую версию для освобождения места? [y/+/д или n/-/н]: "
-            read -r response
-            case "$response" in
-                [yY+дД]*)
-                    rm -f "$MIHOMO_BIN"
-                    AVAIL_ROOT_KB=$(df -k "$INSTALL_DIR_PATH" | awk 'NR==2 {print $4}')
-                    if [ "$AVAIL_ROOT_KB" -lt "$REQ_ROOT_KB" ]; then
-                        log_error "Места всё равно недостаточно после удаления."
-                        return 1
-                    fi
-                    ;;
-                *)
-                    log_warn "Установка отменена."
-                    return 1
-                    ;;
-            esac
-        else
-            log_warn "Старая версия не найдена. Удалите лишние пакеты вручную."
-            return 1
-        fi
-    fi
+if [ "$AVAIL_ROOT_KB" -lt "$REQ_ROOT_KB" ]; then
+    log_error "Недостаточно места: $((AVAIL_ROOT_KB/1024)) MB (нужно $((REQ_ROOT_KB/1024)) MB)"
+fi
 
-    if [ -f "/etc/init.d/mihomo" ]; then
-        /etc/init.d/mihomo stop 2>/dev/null || true
-    fi
+[ -f /etc/init.d/mihomo ] && /etc/init.d/mihomo stop 2>/dev/null
 
-    if [ -z "${MIHOMO_ARCH+x}" ]; then
-        MIHOMO_ARCH=$(detect_mihomo_arch)
-    fi
-    echo "--> Архитектура системы: $(uname -m) -> выбран файл: $MIHOMO_ARCH"
+[ -z "${MIHOMO_ARCH+x}" ] && MIHOMO_ARCH=$(detect_mihomo_arch)
+echo "--> Архитектура: $(uname -m) -> файл: $MIHOMO_ARCH"
 
-    mkdir -p "$MIHOMO_INSTALL_DIR" \
-             /etc/mihomo/proxy-providers \
-             /etc/mihomo/rule-providers \
-             /etc/mihomo/rule-files \
-             /etc/mihomo/UI
+mkdir -p "$MIHOMO_INSTALL_DIR" \
+         /etc/mihomo/{proxy-providers,rule-providers,rule-files,UI}
 
-    echo "$MIHOMO_ARCH" > /etc/mihomo/.arch
+echo "$MIHOMO_ARCH" > /etc/mihomo/.arch
 
-    echo "--> Получение номера последней версии..."
-    local RELEASE_TAG
-    RELEASE_TAG=$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/MetaCubeX/mihomo/releases/latest | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    if [ -z "$RELEASE_TAG" ]; then
-        log_error "Не удалось определить версию. Проверьте интернет."
-        return 1
-    fi
-    echo "--> Последняя версия: $RELEASE_TAG"
+echo "--> Получение последней версии..."
+RELEASE_TAG=$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/MetaCubeX/mihomo/releases/latest | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 
-    local FILENAME="mihomo-linux-${MIHOMO_ARCH}-${RELEASE_TAG}.gz"
-    local DOWNLOAD_URL="https://github.com/MetaCubeX/mihomo/releases/download/${RELEASE_TAG}/${FILENAME}"
-    local TMP_FILE="/tmp/mihomo.gz"
+[ -z "$RELEASE_TAG" ] && { log_error "Не удалось определить версию."; return 1; }
 
-    log_info "Скачивание архива $FILENAME"
-    echo "--> URL: $DOWNLOAD_URL"
-    if ! curl -Lf --retry 3 --retry-delay 2 "$DOWNLOAD_URL" -o "$TMP_FILE" >/dev/null 2>&1; then
-        log_error "Ошибка скачивания! Проверьте, существует ли файл $FILENAME в релизах."
-        return 1
-    fi
+echo "--> Последняя версия: $RELEASE_TAG"
 
-    echo "--> Распаковка архива..."
-    if ! gunzip -c "$TMP_FILE" > "$MIHOMO_BIN" 2>/dev/null; then
-        log_error "Ошибка распаковки архива"
-        rm -f "$TMP_FILE"
-        return 1
-    fi
-    chmod +x "$MIHOMO_BIN"
-    rm -f "$TMP_FILE"
+FILENAME="mihomo-linux-${MIHOMO_ARCH}-${RELEASE_TAG}.gz"
+URL="https://github.com/MetaCubeX/mihomo/releases/download/${RELEASE_TAG}/${FILENAME}"
+TMP="/tmp/mihomo.gz"
 
-    echo "--> Проверка работы ядра Mihomo..."
-    if ! "$MIHOMO_BIN" -v >/dev/null 2>&1; then
-        log_error "Ядро не запускается! Возможно, выбрана неверная архитектура."
-        return 1
-    fi
+log_info "Скачивание $FILENAME"
+echo "--> URL: $URL"
 
-    local CONFIG_FILE="/etc/mihomo/config.yaml"
-    local WRITE_NEW_CONFIG=1
+curl -Lf --retry 3 --retry-delay 2 "$URL" -o "$TMP" >/dev/null 2>&1 || { log_error "Ошибка скачивания."; return 1; }
 
-    if [ -f "$CONFIG_FILE" ]; then
-        if grep -q "mixed-port: 7890" "$CONFIG_FILE"; then
-            echo "--> Найдена существующая конфигурация. Оставляем без изменений..."
-            WRITE_NEW_CONFIG=0
-        else
-            log_warn "Конфигурация найдена, но без 'mixed-port: 7890'. Создаём резервную копию."
-            cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
-        fi
-    fi
+echo "--> Распаковка..."
+gunzip -c "$TMP" > "$MIHOMO_BIN" 2>/dev/null || { log_error "Ошибка распаковки."; rm -f "$TMP"; return 1; }
 
-    if [ "$WRITE_NEW_CONFIG" -eq 1 ]; then
-        echo "--> Создание новой конфигурации /etc/mihomo/config.yaml..."
-        cat > "$CONFIG_FILE" <<'EOF'
-mode: rule
-ipv6: false
-mixed-port: 7890
-log-level: error
-allow-lan: false
-unified-delay: true
-tcp-concurrent: false
-find-process-mode: off
-external-controller: 0.0.0.0:9090
-external-ui: ./UI
-external-ui-url: "https://github.com/Zephyruso/zashboard/releases/latest/download/dist-cdn-fonts.zip"
-routing-mark: 2
-profile:
-  store-selected: true
-  store-fake-ip: true
-  tracing: true
-sniffer:
-  enable: true
-  force-dns-mapping: true
-  parse-pure-ip: true
-  sniff:
-    HTTP:
-      ports: [80]
-      override-destination: true
-    TLS:
-      ports: [443, 8443]
-    QUIC:
-      ports: [443, 8443]
-  skip-domain:
-    - Mijia Cloud
-    - +.lan
-    - +.local
-    - +.msftconnecttest.com
-    - +.msftncsi.com
-    - +.3gppnetwork.org
-    - +.openwrt.org
-    - +.vsean.net
-    - cudy.net
+chmod +x "$MIHOMO_BIN"
+rm -f "$TMP"
 
-dns:
-  enable: true
-  listen: 0.0.0.0:7880
-  ipv6: false
-  nameserver:
-    - https://dns.google/dns-query
-    - https://dns.cloudflare.com/dns-query
-    - https://common.dot.dns.yandex.net/dns-query
-    - https://unfiltered.adguard-dns.com/dns-query
-
-proxies:
-  - name: Домашний интернет
-    type: direct
-
-proxy-groups:
-
-rule-providers:
-
-rules:
-  - MATCH,Домашний интернет
-EOF
-    fi
+echo "--> Проверка ядра..."
+"$MIHOMO_BIN" -v >/dev/null 2>&1 || { log_error "Ядро не запускается."; return 1; }
 
     echo "--> Создание службы /etc/init.d/mihomo..."
     cat > /etc/init.d/mihomo <<'EOF'
@@ -1295,21 +1154,17 @@ install_magitrickle() {
         opkg remove magitrickle >/dev/null 2>&1 || true
     fi
 
-    if [ "$USE_APK" -eq 1 ]; then
-ARCH=$(grep "^OPENWRT_ARCH=" /etc/os-release | cut -d'"' -f2) || exit 1
-APK="magitrickle_${MT_VERSION_APK}_${MT_PRE_APK}-r1_openwrt_${ARCH}.apk"
-URL="https://gitlab.com/api/v4/projects/69165954/jobs/artifacts/develop/raw/.build/$APK?job=build"
-curl -Lf --retry 3 --retry-delay 2 -o /tmp/magitrickle.apk "$URL" >/dev/null 2>&1 || exit 1
-apk add --allow-untrusted /tmp/magitrickle.apk >/dev/null 2>&1 || exit 1
-rm -f /tmp/magitrickle.apk
-    else
-ARCH=$(grep "^OPENWRT_ARCH=" /etc/os-release | cut -d'"' -f2) || exit 1
-IPK="magitrickle_${MT_VERSION_OPKG}-2_openwrt_${ARCH}.ipk"
-URL="https://gitlab.com/api/v4/projects/69165954/packages/generic/magitrickle/${MT_VERSION_OPKG}/$IPK"
-wget -q -O "/tmp/$IPK" "$URL" || exit 1
-opkg install "/tmp/$IPK" >/dev/null 2>&1 || exit 1
-rm -f "/tmp/$IPK"
-    fi
+if [ "$USE_APK" -eq 1 ]; then
+    FILE=/tmp/magitrickle.apk
+    curl -Lf --retry 3 --retry-delay 2 -o "$FILE" "$URL_APK" >/dev/null 2>&1 || exit 1
+    apk add --allow-untrusted "$FILE" >/dev/null 2>&1 || exit 1
+else
+    FILE=/tmp/magitrickle.ipk
+    curl -Lf --retry 3 --retry-delay 2 -o "$FILE" "$URL_IPK" >/dev/null 2>&1 || exit 1
+    opkg install "$FILE" >/dev/null 2>&1 || exit 1
+fi
+
+rm -f "$FILE"
 
 	echo "--> Установка списка для MagiTrickle..."
 	confGIT="https://raw.githubusercontent.com/StressOzz/Use_WARP_on_OpenWRT/refs/heads/main/files/MagiTrickle/configAD.yaml"
