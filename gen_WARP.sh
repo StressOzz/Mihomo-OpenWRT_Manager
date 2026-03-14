@@ -9,6 +9,12 @@ EP_LIST='Россия    |engage.cloudflareclient.com:4500
 Финляндия |fi.tribukvy.ltd:4501
 Финляндия |fi0.tribukvy.ltd:4501'
 
+DNS_LIST='Cloudflare|1.1.1.1, 2606:4700:4700::1111
+Google|8.8.8.8, 8.8.4.4, 2001:4860:4860::8888, 2001:4860:4860::8844
+malw.link|84.21.189.133, 64.188.98.242, 2a01:ecc0:2c1:2::2, 2a12:bec4:1460:d5::2
+GeoHide|45.155.204.190, 95.182.120.241, 2a0c:9300:0:54::1
+XBOX|87.228.47.200, 87.228.47.201, 2a00:ab00:533:6::200, 2a00:ab00:533:6::201'
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -17,6 +23,32 @@ MAGENTA="\033[1;35m"
 CYAN="\033[1;36m"
 
 clear
+
+chose_DNS() {
+DNS_SELECTED="1.1.1.1, 2606:4700:4700::1111"
+
+if [ "$ENDPOINT" = "engage.cloudflareclient.com:4500" ]; then
+
+echo -e "${MAGENTA}Выберите DNS:${NC}"
+
+i=1
+echo "$DNS_LIST" | while IFS='|' read -r name dns; do
+printf "${CYAN}%1d) ${GREEN}%s${NC}\n" "$i" "$name"
+i=$((i+1))
+done
+
+echo -en "\n${YELLOW}Введите номер (Enter = Cloudflare):${NC} "
+read dns_num
+
+MAX_NUM=$(echo "$DNS_LIST" | wc -l)
+
+if printf '%s' "$dns_num" | grep -qE '^[0-9]+$' && [ "$dns_num" -ge 1 ] && [ "$dns_num" -le "$MAX_NUM" ]; then
+DNS_SELECTED="$(echo "$DNS_LIST" | sed -n "${dns_num}p" | cut -d'|' -f2)"
+fi
+
+echo
+fi
+}
 
 chose_endpoint() {
 
@@ -52,25 +84,25 @@ rm -f "$TMP_FILE"
 i=1
 echo "$SORTED_LIST" | while IFS='|' read -r ping_sort country ep ping_val; do
 
-    if [ "$ping_val" = "FAIL" ]; then
-        color="$RED"
-    else
-        ping_num=${ping_val%% *}
-        if [ "$ping_num" -lt 50 ]; then
-            color="$GREEN"
-        elif [ "$ping_num" -lt 100 ]; then
-            color="$YELLOW"
-        else
-            color="$RED"
-        fi
-    fi
+if [ "$ping_val" = "FAIL" ]; then
+color="$RED"
+else
+ping_num=${ping_val%% *}
+if [ "$ping_num" -lt 50 ]; then
+color="$GREEN"
+elif [ "$ping_num" -lt 100 ]; then
+color="$YELLOW"
+else
+color="$RED"
+fi
+fi
 
-printf "${CYAN}%2d) ${GREEN}%-10s ${MAGENTA}| ${color}%-7s${MAGENTA}| ${CYAN}%s${NC}\n" "$i" "$country" "$ping_val" "$ep"
+printf "${CYAN}%1d) ${GREEN}%-10s ${MAGENTA}| ${color}%-7s${MAGENTA}| ${CYAN}%s${NC}\n" "$i" "$country" "$ping_val" "$ep"
 
 i=$((i+1))
 done
 
-echo -en "\n${YELLOW}Введите номер:${NC} "
+echo -en "\n${YELLOW}Введите номер (Enter = Россия):${NC} "
 read num
 
 MAX_NUM=$(echo "$SORTED_LIST" | wc -l)
@@ -167,7 +199,7 @@ exit 1
 fi
 
 ################################################################################################
-chose_endpoint
+chose_endpoint; chose_DNS
 ################################################################################################
 
 echo -e "${GREEN}Активируем и генерируем ${NC}WARP${NC}"
@@ -187,7 +219,7 @@ conf=$(cat <<EOF
 [Interface]
 PrivateKey = ${priv}
 Address = ${client_ipv4}, ${client_ipv6}
-DNS = 1.1.1.1, 2606:4700:4700::1111
+DNS = ${DNS_SELECTED}
 MTU = 1280
 S1 = 0
 S2 = 0
